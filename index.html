@@ -4490,12 +4490,12 @@ function renderSidebar(){
   settingsMenu.appendChild(exportItem);
 
   const tourItem=document.createElement('button'); tourItem.className='settings-item';
-  tourItem.innerHTML=settingsItemHTML('🗺️', t('sidebar.replayTour'), 'var(--indigo)');
+  tourItem.innerHTML=settingsItemHTML('🧭', t('sidebar.replayTour'), 'var(--indigo)');
   tourItem.onclick=()=>{ settingsOverlay.remove(); startInteractiveTour(); };
   settingsMenu.appendChild(tourItem);
 
   const reportItem=document.createElement('button'); reportItem.className='settings-item';
-  reportItem.innerHTML=settingsItemHTML('🔧', t('sidebar.reportBug'), 'var(--indigo)');
+  reportItem.innerHTML=settingsItemHTML('🐞', t('sidebar.reportBug'), 'var(--indigo)');
   reportItem.onclick=()=>{ settingsOverlay.remove(); openReportModal(); };
   settingsMenu.appendChild(reportItem);
 
@@ -5671,13 +5671,25 @@ function renderTabs(){
   dt.appendChild(addBtn);
 }
 
-function dayTotals(dayKey){
+// Suma las kcal quemadas (campo "activeKcal", que el usuario indica o la app sugiere al registrar una
+// actividad) de las actividades de una fecha concreta. Solo cuenta si tiene un número real: las actividades
+// importadas de una app de salud sin ese dato no restan nada.
+function activeKcalBurnedOnDate(iso){
+  if (!iso) return 0;
+  return (state.activityLog||[]).reduce((s,a)=> a.date===iso ? s+(+a.activeKcal||0) : s, 0);
+}
+// dayKey: qué menú del día se sirve (sus alimentos). iso (opcional): la fecha real que se está viendo — si
+// se indica, las kcal quemadas ese día (actividades registradas) se restan de las kcal "comidas" del total,
+// para que el anillo de kcal refleje que hacer deporte deja más margen para comer. Nunca baja de 0, y no
+// afecta a proteína/hidratos/grasas (el ejercicio no aporta macros).
+function dayTotals(dayKey, iso){
   const dt = state.dayTypes.find(d=>d.key===dayKey);
   const total={p:0,h:0,a:0,g:0,s:0,l:0,k:0};
   if (!dt) return total;
   dt.meals.forEach(m => (state.plans[dayKey][m.key]||[]).forEach(it=>{
     const r=computeRow(it); METRICS.forEach(({key})=>total[key]+=r[key]);
   }));
+  if (iso) total.k = Math.max(0, total.k - activeKcalBurnedOnDate(iso));
   Object.keys(total).forEach(k=>total[k]=+total[k].toFixed(1));
   return total;
 }
@@ -5739,8 +5751,9 @@ function svgRing(pct, colorVar, value, unit, label, size){
 
 function renderMacroBar(){
   const bar=document.getElementById('macrobar'); bar.innerHTML='';
-  const total=dayTotals(state.currentDay);
+  const total=dayTotals(state.currentDay, calendarAnchor);
   const targets = state.profile ? state.profile.targets : null;
+  const burnedToday = activeKcalBurnedOnDate(calendarAnchor);
 
   const ringsWrap=document.createElement('div'); ringsWrap.style.cssText='display:grid;grid-template-columns:repeat(5,1fr);justify-content:center;gap:2px;padding:8px 4px;grid-column:1 / -1;align-items:start;';
   const ringsByKey = {};
@@ -5768,6 +5781,13 @@ function renderMacroBar(){
   finalRingOrder.forEach(k=>ringsWrap.appendChild(ringsByKey[k]));
   bar.appendChild(ringsWrap);
   makeListReorderable(ringsWrap, (newOrder)=>{ state.ringOrder = newOrder; saveState(); });
+  // El deporte de hoy ya se ha restado del anillo de kcal (más margen para comer); esta nota es solo para que se entienda por qué.
+  if (targets && burnedToday > 0){
+    const note=document.createElement('p'); note.style.cssText='text-align:center;font-size:11px;color:var(--ink-soft);margin:2px 0 0;';
+    note.title=t('training.kcalBurnedTotal');
+    note.textContent='🔥 -'+Math.round(burnedToday)+' kcal';
+    bar.appendChild(note);
+  }
 }
 
 function topSet(items,key){
@@ -6172,7 +6192,7 @@ function recipeFitScore(recipe){
 // solo existen en el cliente.
 function getRecipeCandidatesForChat(){
   if (!state.profile || !state.profile.targets || !state.currentDay) return [];
-  const totals = dayTotals(state.currentDay);
+  const totals = dayTotals(state.currentDay, calendarAnchor);
   const remainingKcal = (state.profile.targets.k||0) - (totals.k||0);
   if (remainingKcal <= 50) return [];
   return RECIPES.filter(r=>r.c!=='Cheat meal' && r.c!=='Vegano' && r.c!=='Embarazo' && r.c!=='Bebé').map(r=>{
@@ -7207,7 +7227,7 @@ function renderRecipesView(){
     if (isCheat && state.profile && state.profile.targets && state.profile.targets.k){
       // Control: cuánto pesa este capricho frente a tu objetivo diario y cómo queda el día si te lo comes.
       const target = state.profile.targets.k, pct = Math.round(totals.k/target*100);
-      const eaten = state.currentDay ? dayTotals(state.currentDay).k : 0, left = Math.round(target - eaten - totals.k);
+      const eaten = state.currentDay ? dayTotals(state.currentDay, calendarAnchor).k : 0, left = Math.round(target - eaten - totals.k);
       const col = pct<40 ? 'var(--indigo)' : pct<60 ? 'var(--gold)' : 'var(--magenta)';
       const ctl=document.createElement('p'); ctl.style.cssText='font-size:12px;margin:0 0 8px;color:'+col+';';
       ctl.innerHTML = '<strong>'+pct+'%</strong> '+t('cheat.ofDaily')+' · '+(left>=0 ? t('cheat.leftAfter').replace('{n}', left) : t('cheat.overBy').replace('{n}', -left));
@@ -14781,7 +14801,7 @@ function activitiesForDate(iso){ return (state.activityLog||[]).filter(a=>a.sour
 function renderDayCellSummary(container, iso, compact){
   const dtKey = dayTypeKeyForDate(iso);
   if (dtKey && dayPlanHasItems(dtKey) && state.profile){
-    const tt = dayTotals(dtKey);
+    const tt = dayTotals(dtKey, iso);
     const kc=document.createElement('p'); kc.style.cssText='font-size:11px;color:var(--ink-soft);margin:4px 0 0;';
     kc.textContent = Math.round(tt.k)+'/'+state.profile.targets.k+' kcal';
     container.appendChild(kc);
@@ -14863,7 +14883,7 @@ function renderCalendarDay(main, iso){
   } else {
     const hasItems = dayPlanHasItems(dtKey);
     if (state.profile && hasItems){
-      const tt = dayTotals(dtKey);
+      const tt = dayTotals(dtKey, iso);
       const kc=document.createElement('p'); kc.style.cssText='font-size:12px;color:var(--ink-soft);margin:0 0 10px;';
       kc.textContent = Math.round(tt.k)+' / '+state.profile.targets.k+' kcal';
       menuBody.appendChild(kc);
@@ -16823,7 +16843,7 @@ async function renderFullProgressView(){
     const todayCard=document.createElement('div'); todayCard.className='card';
     const todayTitle=document.createElement('p'); todayTitle.className='card-title'; todayTitle.style.margin='0'; todayTitle.textContent='🎯 '+t('progress.todayTargets');
     const todayBody = buildReorderableCardHeader(todayCard, 'today', todayTitle);
-    const totalToday = dayTotals(state.currentDay);
+    const totalToday = dayTotals(state.currentDay, todayStr());
     const targets = state.profile.targets;
     [['k','Kcal',targets.k],['p',t('progress.proteinLabel'),targets.p],['h',t('progress.carbsLabel'),targets.h],['g',t('progress.fatsLabel'),targets.g]].forEach(([key,label,target])=>{
       const pct = target>0 ? Math.min(100, Math.round(totalToday[key]/target*100)) : 0;
@@ -16946,7 +16966,7 @@ async function renderFullProgressView(){
   const nutriWeekRows = Array.from({length:7},(_,i)=>{ const iso=addDaysISO(mondayOfISO(todayStr()),i); const k=dayTypeKeyForDate(iso); return k && dayPlanHasItems(k) ? {iso,k} : null; }).filter(Boolean);
   if (nutriWeekRows.length && state.profile){
     const rows = nutriWeekRows.map(({iso,k})=>{
-      const t = dayTotals(k);
+      const t = dayTotals(k, iso);
       const label = getWeekdays().find(([wk])=>wk===weekdayKeyOfISO(iso))[1].slice(0,3)+' '+parseISODate(iso).getDate();
       return {label, kcal:Math.round(t.k), prot:t.p};
     });
@@ -17015,7 +17035,7 @@ function renderProgressView(){
   const targetCard=document.createElement('div'); targetCard.className='card';
   targetCard.innerHTML = tf('ui.bbde4a94',[dt ? dt.label : t('ui.3d8c8c46')]);
   if (state.profile && dt){
-    const total=dayTotals(state.currentDay);
+    const total=dayTotals(state.currentDay, calendarAnchor);
     const t=state.profile.targets;
     [['k','Kcal',t.k],['p','Proteína (g)',t.p],['h','Hidratos (g)',t.h],['g','Grasas (g)',t.g]].forEach(([key,label,target])=>{
       const pct = target>0 ? Math.min(100, Math.round(total[key]/target*100)) : 0;
@@ -17035,7 +17055,7 @@ function renderProgressView(){
   const plannedDays = selectableDayTypes().filter(d=>dayPlanHasItems(d.key)).sort((x,y)=>(x.date||'').localeCompare(y.date||''));
   if (plannedDays.length){
     plannedDays.forEach(d=>{
-      const tt = dayTotals(d.key);
+      const tt = dayTotals(d.key, d.date);
       const row=document.createElement('div'); row.style.cssText='display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:5px 0;border-top:1px solid var(--line);';
       row.innerHTML = '<span>'+d.label+'</span><span style="color:var(--ink-soft);flex-shrink:0;">'+Math.round(tt.k)+' kcal · '+tt.p+' g '+t('progress.prot')+'</span>';
       allDaysCard.appendChild(row);
