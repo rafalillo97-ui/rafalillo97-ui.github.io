@@ -10,7 +10,7 @@
 // internet igualmente — esto solo cubre que la app en sí (el HTML/CSS/JS)
 // aparezca de inmediato.
 
-const CACHE_NAME = 'cesta-shell-v39';
+const CACHE_NAME = 'cesta-shell-v40';
 // Los datos de cada idioma se piden aparte bajo /idiomas/ (ver ensureLangDataLoaded en
 // index.html) y no se precargaban aquí — la app funcionaba bien offline en general
 // porque el fetch handler de abajo va guardando en caché lo que se pide con éxito, pero
