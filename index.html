@@ -10842,7 +10842,7 @@ function normalizeToGrouped(rawBlocks){
         const rpeI=document.createElement('input'); rpeI.type='number'; rpeI.min='1'; rpeI.max='10'; rpeI.placeholder='RPE'; rpeI.title=t('training.rpeHint'); rpeI.value=b.rpe||''; rpeI.oninput=()=>b.rpe=+rpeI.value||null;
         const delB=document.createElement('button'); delB.className='del-circle'; delB.textContent='\u2212';
         delB.onclick=()=>{ grupo.ejercicios.splice(idx,1); renderBlocksUI(); };
-        [exWrap,setsI,repsI,wI,restWrap,rpeI,delB].forEach(el=>row.appendChild(el));
+        [exWrap,setsI,repsI,wI,restWrap,rpeI,delB,lastHint].forEach(el=>row.appendChild(el));
         groupBox.appendChild(row);
       });
       const addExBtn=document.createElement('button'); addExBtn.className='btn ghost'; addExBtn.style.cssText='font-size:11px;color:var(--indigo);';
