@@ -3,6 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<!-- Arreglo de la auditoría del 28/09/2026 (S29/sección 4): como el sitio se sirve desde
+     GitHub Pages (no Netlify), no hay forma de mandar cabeceras HTTP reales — GitHub Pages
+     no lo permite. Esta es la única parte de la protección que SÍ se puede conseguir así,
+     vía <meta>: restringe desde dónde puede cargar scripts/imágenes/conexiones la página.
+     X-Frame-Options, X-Content-Type-Options y Referrer-Policy no tienen equivalente en
+     <meta> — para tenerlas de verdad haría falta otro hosting (Netlify, Cloudflare Pages...)
+     o un proxy tipo Cloudflare delante de GitHub Pages. Probado en navegador: no bloquea nada
+     de lo que usa la app (Supabase, Sentry, jsDelivr, cdnjs para jsPDF, Open Food Facts,
+     Unsplash para las fotos de la portada).-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://browser.sentry-cdn.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com; font-src 'self'; media-src 'self' blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://o4512085332262912.ingest.de.sentry.io https://*.openfoodfacts.org; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>cesta. — calculadora de macros y lista de la compra</title>
 <meta name="description" content="cesta. es tu app de nutrición, entrenamiento y entrenadores personales: más de 20.000 alimentos, planificador semanal automático, foto del plato con IA, macros, entrenamientos y módulo Culturismo — en 24 idiomas.">
 <meta name="robots" content="index, follow">
